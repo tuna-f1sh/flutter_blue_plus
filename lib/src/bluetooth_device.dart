@@ -23,15 +23,21 @@ class BluetoothDevice {
         name = name ?? "Unknown name",
         type = type ?? BluetoothDeviceType.unknown;
 
-  final BehaviorSubject<bool> _isDiscoveringServices =
-      BehaviorSubject.seeded(false);
+  final BehaviorSubject<bool> _isDiscoveringServices = BehaviorSubject(false);
+  
   Stream<bool> get isDiscoveringServices => _isDiscoveringServices.stream;
 
   /// Establishes a connection to the Bluetooth Device.
   Future<void> connect({
     Duration? timeout,
     bool autoConnect = true,
+    bool shouldClearGattCache = true,
   }) async {
+
+    if (Platform.isAndroid && shouldClearGattCache) {
+      clearGattCache();
+    }
+
     var request = protos.ConnectRequest.create()
       ..remoteId = id.toString()
       ..androidAutoConnect = autoConnect;
@@ -54,46 +60,11 @@ class BluetoothDevice {
     }
   }
 
-  /// Set the prefered PY to LE_2M on Android
-  Future<void> setPreferedPhy2M() async {
-    if (Platform.isAndroid) {
-      return FlutterBluePlus.instance._channel
-          .invokeMethod('setPreferedPhy2M', id.toString());
-    }
-  }
-
-  /// Request default balenced priority on Andoird to return from high or low for example
-  Future<void> requestConnectionPriorityBalenced() async {
-    if (Platform.isAndroid) {
-      return FlutterBluePlus.instance._channel
-          .invokeMethod('requestConnectionPriorityBalenced', id.toString());
-    }
-  }
-
-  /// Request low power, reduced data rate connection parameters on Android
-  Future<void> requestConnectionPriorityLowPower() async {
-    if (Platform.isAndroid) {
-      return FlutterBluePlus.instance._channel
-          .invokeMethod('requestConnectionPriorityLowPower', id.toString());
-    }
-  }
-
-  /// Request connection priority high on Android
-  /// should be temporary for high data transfer and put back to balenced after complete
-  Future<void> requestConnectionPriorityHigh() async {
-    if (Platform.isAndroid) {
-      return FlutterBluePlus.instance._channel
-          .invokeMethod('requestConnectionPriorityHigh', id.toString());
-    }
-  }
-
   /// Send a pairing request to the device.
   /// Currently only implemented on Android.
   Future<void> pair() async {
-    if (Platform.isAndroid) {
-      return FlutterBluePlus.instance._channel
-          .invokeMethod('pair', id.toString());
-    }
+    return FlutterBluePlus.instance._channel
+        .invokeMethod('pair', id.toString());
   }
 
   /// Refresh Gatt Device Cache
@@ -110,8 +81,7 @@ class BluetoothDevice {
   Future disconnect() => FlutterBluePlus.instance._channel
       .invokeMethod('disconnect', id.toString());
 
-  final BehaviorSubject<List<BluetoothService>> _services =
-      BehaviorSubject.seeded([]);
+  final BehaviorSubject<List<BluetoothService>> _services = BehaviorSubject([]);
 
   /// Discovers services offered by the remote device as well as their characteristics and descriptors
   Future<List<BluetoothService>> discoverServices() async {
@@ -226,6 +196,82 @@ class BluetoothDevice {
     });
   }
 
+  /// Request a connection parameter update.
+  ///
+  /// This function will send a connection parameter update request to the
+  /// remote device and is only available on Android.
+  ///
+  /// Request a specific connection priority. Must be one of
+  /// ConnectionPriority.balanced, BluetoothGatt#ConnectionPriority.high or
+  /// ConnectionPriority.lowPower.
+  Future<void> requestConnectionPriority({
+    required ConnectionPriority connectionPriorityRequest,
+  }) async {
+    int connectionPriority = 0;
+
+    switch (connectionPriorityRequest) {
+      case ConnectionPriority.balanced:
+        connectionPriority = 0;
+        break;
+      case ConnectionPriority.high:
+        connectionPriority = 1;
+
+        break;
+      case ConnectionPriority.lowPower:
+        connectionPriority = 2;
+
+        break;
+      default:
+        break;
+    }
+
+    var request = protos.ConnectionPriorityRequest.create()
+      ..remoteId = id.toString()
+      ..connectionPriority = connectionPriority;
+
+    await FlutterBluePlus.instance._channel.invokeMethod(
+      'requestConnectionPriority',
+      request.writeToBuffer(),
+    );
+  }
+
+  /// Set the preferred connection [txPhy], [rxPhy] and Phy [option] for this
+  /// app. [txPhy] and [rxPhy] are int to be passed a masked value from the
+  /// [PhyType] enum, eg `(PhyType.le1m.mask | PhyType.le2m.mask)`.
+  ///
+  /// Please note that this is just a recommendation, whether the PHY change
+  /// will happen depends on other applications preferences, local and remote
+  /// controller capabilities. Controller can override these settings. 
+  Future<void> setPreferredPhy({
+    required int txPhy,
+    required int rxPhy,
+    required PhyOption option,
+  }) async {
+    int phyOptionInt = option.index;
+
+    var request = protos.PreferredPhy.create()
+      ..remoteId = id.toString()
+      ..txPhy = txPhy
+      ..rxPhy = rxPhy
+      ..phyOptions = phyOptionInt;
+
+    await FlutterBluePlus.instance._channel.invokeMethod(
+      'setPreferredPhy',
+      request.writeToBuffer(),
+    );
+  }
+
+  /// Only implemented on Android, for now
+  Future<bool> removeBond() async {
+    if (Platform.isAndroid) {
+      return FlutterBluePlus.instance._channel
+          .invokeMethod('removeBond', id.toString())
+          .then<bool>((value) => value);
+    } else {
+      return false;
+    }
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -245,3 +291,24 @@ class BluetoothDevice {
 enum BluetoothDeviceType { unknown, classic, le, dual }
 
 enum BluetoothDeviceState { disconnected, connecting, connected, disconnecting }
+
+enum ConnectionPriority { balanced, high, lowPower }
+
+enum PhyType { le1m, le2m, leCoded }
+
+extension PhyTypeExt on PhyType {
+  int get mask {
+    switch (this) {
+      case PhyType.le1m:
+        return 1;
+      case PhyType.le2m:
+        return 2;
+      case PhyType.leCoded:
+        return 3;
+      default:
+        return 1;
+    }
+  }
+}
+
+enum PhyOption { noPreferred, S2, S8 }

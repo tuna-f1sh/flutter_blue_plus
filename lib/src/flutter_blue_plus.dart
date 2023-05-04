@@ -14,12 +14,6 @@ class FlutterBluePlus {
   Stream<MethodCall> get _methodStream => _methodStreamController
       .stream; // Used internally to dispatch methods from platform.
 
-  /// Cached broadcast stream for FlutterBlue.state events
-  /// Caching this stream allows for more than one listener to subscribe
-  /// and unsubscribe apart from each other,
-  /// while allowing events to still be sent to others that are subscribed
-  Stream<BluetoothState>? _stateStream;
-
   /// Singleton boilerplate
   FlutterBluePlus._() {
     _channel.setMethodCallHandler((MethodCall call) async {
@@ -69,11 +63,14 @@ class FlutterBluePlus {
     return _channel.invokeMethod('turnOff').then<bool>((d) => d);
   }
 
-  final BehaviorSubject<bool> _isScanning = BehaviorSubject.seeded(false);
+  final BehaviorSubject<bool> _isScanning = BehaviorSubject(false);
+
   Stream<bool> get isScanning => _isScanning.stream;
 
+  bool get isScanningNow => _isScanning.latestValue;
+
   final BehaviorSubject<List<ScanResult>> _scanResults =
-      BehaviorSubject.seeded([]);
+      BehaviorSubject([]);
 
   /// Returns a stream that is a list of [ScanResult] results while a scan is in progress.
   ///
@@ -84,22 +81,14 @@ class FlutterBluePlus {
   /// results of a scan in real time while the scan is in progress.
   Stream<List<ScanResult>> get scanResults => _scanResults.stream;
 
-  final PublishSubject _stopScanPill = PublishSubject();
-
-  /// Gets the current state of the Bluetooth module
+  /// Gets the current state of the Bluetooth module as a stream of [BluetoothState] values.
+  /// It invokes the method to get state at the same time as aquiring the stream since nothing else does this
   Stream<BluetoothState> get state async* {
-    yield await _channel
+    final BluetoothState state = await _channel
         .invokeMethod('state')
         .then((buffer) => protos.BluetoothState.fromBuffer(buffer))
         .then((s) => BluetoothState.values[s.state.value]);
-
-    _stateStream ??= _stateChannel
-        .receiveBroadcastStream()
-        .map((buffer) => protos.BluetoothState.fromBuffer(buffer))
-        .map((s) => BluetoothState.values[s.state.value])
-        .doOnCancel(() => _stateStream = null);
-
-    yield* _stateStream!;
+    yield state;
   }
 
   /// Retrieve a list of connected devices
@@ -119,6 +108,9 @@ class FlutterBluePlus {
         .then((p) => p.devices)
         .then((p) => p.map((d) => BluetoothDevice.fromProto(d)).toList());
   }
+
+  // timeout for scanning that can be cancelled by stopScan
+  Timer? _scanTimeout;
 
   /// Starts a scan for Bluetooth Low Energy devices and returns a stream
   /// of the [ScanResult] results as they are received.
@@ -147,10 +139,11 @@ class FlutterBluePlus {
     // Emit to isScanning
     _isScanning.add(true);
 
-    final killStreams = <Stream>[];
-    killStreams.add(_stopScanPill);
     if (timeout != null) {
-      killStreams.add(Rx.timer(null, timeout));
+      _scanTimeout = Timer(timeout, () {
+        _isScanning.add(false);
+        _channel.invokeMethod('stopScan');
+      });
     }
 
     // Clear scan results list
@@ -162,7 +155,6 @@ class FlutterBluePlus {
       if (kDebugMode) {
         print('Error starting scan.');
       }
-      _stopScanPill.add(null);
       _isScanning.add(false);
       rethrow;
     }
@@ -170,7 +162,7 @@ class FlutterBluePlus {
     yield* FlutterBluePlus.instance._methodStream
         .where((m) => m.method == "ScanResult")
         .map((m) => m.arguments)
-        .takeUntil(Rx.merge(killStreams))
+        .takeWhile((element) => _isScanning.value)
         .doOnDone(stopScan)
         .map((buffer) => protos.ScanResult.fromBuffer(buffer))
         .map((p) {
@@ -217,7 +209,7 @@ class FlutterBluePlus {
   /// Stops a scan for Bluetooth Low Energy devices
   Future stopScan() async {
     await _channel.invokeMethod('stopScan');
-    _stopScanPill.add(null);
+    _scanTimeout?.cancel();
     _isScanning.add(false);
   }
 
