@@ -561,7 +561,7 @@ public class FlutterBluePlusPlugin implements FlutterPlugin, MethodCallHandler, 
         }
 
         // Version 33 requires https://developer.android.com/reference/android/bluetooth/BluetoothGatt#writeCharacteristic(android.bluetooth.BluetoothGattCharacteristic,%20byte[],%20int)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= 33) {
           // Apply the correct write type
           if(request.getWriteType() == Protos.WriteCharacteristicRequest.WriteType.WITHOUT_RESPONSE) {
             if ((gattServer.writeCharacteristic(characteristic, request.getValue().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)) != BluetoothStatusCodes.SUCCESS) {
@@ -621,7 +621,7 @@ public class FlutterBluePlusPlugin implements FlutterPlugin, MethodCallHandler, 
           return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= 33) {
           if(gattServer.writeDescriptor(descriptor, request.getValue().toByteArray()) != BluetoothStatusCodes.SUCCESS){
             result.error("write_descriptor_error", "writeDescriptor failed", null);
             return;
