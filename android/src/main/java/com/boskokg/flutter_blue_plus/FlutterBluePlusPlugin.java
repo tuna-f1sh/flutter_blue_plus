@@ -880,30 +880,30 @@ public class FlutterBluePlusPlugin implements FlutterPlugin, MethodCallHandler, 
   }
 
   private void writeCharacteristicValue(BluetoothGatt gattServer, BluetoothGattCharacteristic characteristic, Protos.WriteCharacteristicRequest request, Result result) {
-    if (Build.VERSION.SDK_INT >= 33) {
-      writeCharacteristicValueNew(gattServer, characteristic, request, result);
-    } else {
+    // if (Build.VERSION.SDK_INT >= 33) {
+    //   writeCharacteristicValueNew(gattServer, characteristic, request, result);
+    // } else {
       writeCharacteristicValueLegacy(gattServer, characteristic, request, result);
-    }
+    // }
   }
 
-  @TargetApi(33)
-  private void writeCharacteristicValueNew(BluetoothGatt gattServer, BluetoothGattCharacteristic characteristic, Protos.WriteCharacteristicRequest request, Result result) {
-    // Apply the correct write type
-    if(request.getWriteType() == Protos.WriteCharacteristicRequest.WriteType.WITHOUT_RESPONSE) {
-      if ((gattServer.writeCharacteristic(characteristic, request.getValue().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)) != BluetoothStatusCodes.SUCCESS) {
-        result.error("write_characteristic_error", "writeCharacteristic failed", null);
-        return;
-      }
-    } else {
-      if ((gattServer.writeCharacteristic(characteristic, request.getValue().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)) != BluetoothStatusCodes.SUCCESS) {
-        result.error("write_characteristic_error", "writeCharacteristic failed", null);
-        return;
-      }
-    }
+  // @TargetApi(33)
+  // private void writeCharacteristicValueNew(BluetoothGatt gattServer, BluetoothGattCharacteristic characteristic, Protos.WriteCharacteristicRequest request, Result result) {
+  //   // Apply the correct write type
+  //   if(request.getWriteType() == Protos.WriteCharacteristicRequest.WriteType.WITHOUT_RESPONSE) {
+  //     if ((gattServer.writeCharacteristic(characteristic, request.getValue().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)) != BluetoothStatusCodes.SUCCESS) {
+  //       result.error("write_characteristic_error", "writeCharacteristic failed", null);
+  //       return;
+  //     }
+  //   } else {
+  //     if ((gattServer.writeCharacteristic(characteristic, request.getValue().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)) != BluetoothStatusCodes.SUCCESS) {
+  //       result.error("write_characteristic_error", "writeCharacteristic failed", null);
+  //       return;
+  //     }
+  //   }
 
-    result.success(null);
-  }
+  //   result.success(null);
+  // }
 
   private void writeCharacteristicValueLegacy(BluetoothGatt gattServer, BluetoothGattCharacteristic characteristic, Protos.WriteCharacteristicRequest request, Result result) {
     // Set characteristic to new value
@@ -928,21 +928,21 @@ public class FlutterBluePlusPlugin implements FlutterPlugin, MethodCallHandler, 
   }
 
   private void writeDescriptorValue(BluetoothGatt gattServer, BluetoothGattDescriptor descriptor, Protos.WriteDescriptorRequest request, Result result) {
-    if (Build.VERSION.SDK_INT >= 33) {
-      writeDescriptorValueNew(gattServer, descriptor, request, result);
-    } else {
+    // if (Build.VERSION.SDK_INT >= 33) {
+    //   writeDescriptorValueNew(gattServer, descriptor, request, result);
+    // } else {
       writeDescriptorValueLegacy(gattServer, descriptor, request, result);
-    }
+    // }
   }
 
-  @TargetApi(33)
-  private void writeDescriptorValueNew(BluetoothGatt gattServer, BluetoothGattDescriptor descriptor, Protos.WriteDescriptorRequest request, Result result) {
-    if(gattServer.writeDescriptor(descriptor, request.getValue().toByteArray()) != BluetoothStatusCodes.SUCCESS){
-      result.error("write_descriptor_error", "writeDescriptor failed", null);
-    } else {
-      result.success(null);
-    }
-  }
+  // @TargetApi(33)
+  // private void writeDescriptorValueNew(BluetoothGatt gattServer, BluetoothGattDescriptor descriptor, Protos.WriteDescriptorRequest request, Result result) {
+  //   if(gattServer.writeDescriptor(descriptor, request.getValue().toByteArray()) != BluetoothStatusCodes.SUCCESS){
+  //     result.error("write_descriptor_error", "writeDescriptor failed", null);
+  //   } else {
+  //     result.success(null);
+  //   }
+  // }
 
   private void writeDescriptorValueLegacy(BluetoothGatt gattServer, BluetoothGattDescriptor descriptor, Protos.WriteDescriptorRequest request, Result result) {
     if(!descriptor.setValue(request.getValue().toByteArray())) {
